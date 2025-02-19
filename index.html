@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100vw;
+            height: 100vh;
+            background: #323639;
+            position: relative;
+        }
+
+        .sticky-note {
+            position: absolute;
+            width: 200px;
+            box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            border-radius: 3px;
+            transition: transform 0.2s;
+            background: #fff7b1;
+            /* Default color */
+        }
+
+        /* Color options for notes */
+        .color-yellow {
+            background: #fff7b1;
+        }
+
+        .color-blue {
+            background: #b1e4ff;
+        }
+
+        .color-green {
+            background: #c1ffb1;
+        }
+
+        .color-pink {
+            background: #ffb1e4;
+        }
+
+        .color-purple {
+            background: #e4b1ff;
+        }
+
+        .color-orange {
+            background: #ffd7b1;
+        }
+
+        .color-teal {
+            background: #b1fff4;
+        }
+
+        .color-lime {
+            background: #e4ffb1;
+        }
+
+        .color-coral {
+            background: #ffb1b1;
+        }
+
+        .color-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: none;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+            padding: 5px;
+            z-index: 2000;
+        }
+
+        .color-option {
+            width: 25px;
+            height: 25px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .color-button-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .color-dropdown.show {
+            display: grid;
+        }
+
+        .sticky-note.selected {
+            outline: 2px solid #4a90e2;
+            z-index: 100;
+        }
+
+        .sticky-header {
+            height: 25px;
+            background: rgba(0, 0, 0, 0.05);
+            cursor: move;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 5px;
+            border-radius: 3px 3px 0 0;
+        }
+
+        .sticky-content {
+            padding: 10px;
+            flex-grow: 1;
+            min-height: 100px;
+        }
+
+        .sticky-content textarea {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            resize: none;
+            font-family: Arial, sans-serif;
+            outline: none;
+            padding: 0;
+            color: black;
+        }
+
+        .bubble {
+            position: absolute;
+            border: 2px solid rgba(255, 235, 59, 0.4);
+            border-radius: 50%;
+            cursor: move;
+            transition: all 0.3s ease;
+            background: rgba(255, 235, 59, 0.04);
+            opacity: 0.75;
+        }
+
+        .bubble:hover {
+            background: rgba(255, 235, 59, 0.1);
+            border-color: rgba(255, 235, 59, 0.8);
+            opacity: 0.9;
+        }
+
+        .bubble-title {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ffeb3b;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 14px;
+            color: #333;
+            cursor: pointer;
+            white-space: nowrap;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            z-index: 101;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .bubble-title:hover {
+            background: #ffd600;
+        }
+
+        .selection-area {
+            position: absolute;
+            border: 1px solid #4a90e2;
+            background: rgba(74, 144, 226, 0.1);
+            pointer-events: none;
+        }
+
+        .control-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(50, 54, 57, 0.9);
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .control-button {
+            padding: 8px 16px;
+            background: #4f5559;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .control-button:hover {
+            background: #5c646a;
+            transform: translateY(-1px);
+        }
+
+        .delete-button {
+            background: #e74c3c;
+        }
+
+        .delete-button:hover {
+            background: #c0392b;
+        }
+
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .dialog-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .dialog-buttons {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .title-editor {
+            position: fixed;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .title-editor input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 250px;
+        }
+
+        .title-editor-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="control-panel">
+        <button class="control-button" onclick="stickyNotes.createStickyNote(250, 150)">📝</button>
+        <div class="color-button-container">
+            <button class="control-button" onclick="stickyNotes.toggleColorDropdown(this)">🎨</button>
+            <div class="color-dropdown">
+                <div class="color-option color-yellow" onclick="stickyNotes.changeNoteColor('color-yellow')"></div>
+                <div class="color-option color-blue" onclick="stickyNotes.changeNoteColor('color-blue')"></div>
+                <div class="color-option color-green" onclick="stickyNotes.changeNoteColor('color-green')"></div>
+                <div class="color-option color-pink" onclick="stickyNotes.changeNoteColor('color-pink')"></div>
+                <div class="color-option color-purple" onclick="stickyNotes.changeNoteColor('color-purple')"></div>
+                <div class="color-option color-orange" onclick="stickyNotes.changeNoteColor('color-orange')"></div>
+                <div class="color-option color-teal" onclick="stickyNotes.changeNoteColor('color-teal')"></div>
+                <div class="color-option color-lime" onclick="stickyNotes.changeNoteColor('color-lime')"></div>
+                <div class="color-option color-coral" onclick="stickyNotes.changeNoteColor('color-coral')"></div>
+            </div>
+        </div>
+        <button class="control-button delete-button" onclick="stickyNotes.deleteSelectedNotes()">🗑️</button>
+    </div>
+    <div class="container" id="container"></div>
+
+    <script>
+        if (typeof window.globalMaxZ === 'undefined') {
+            window.globalMaxZ = 1000;
+        }
+
+        class StickyNotesCluster {
+            constructor(container) {
+                this.container = container;
+                this.notes = [];
+                this.bubbles = [];
+                this.draggedElement = null;
+                this.clusterThreshold = 15; // Adjusted threshold for edge-based distance
+                this.selectedNotes = new Set();
+                this.selectionArea = null;
+                this.isSelecting = false;
+                this.selectionStart = { x: 0, y: 0 };
+                this.clusterTitles = {}; // Store cluster titles
+
+                this.setupEventListeners();
+                window.addEventListener('resize', () => this.updateClusters());
+
+                // Close color dropdown when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.color-button-container')) {
+                        this.closeColorDropdown();
+                    }
+                    if (!e.target.closest('.title-editor') && !e.target.classList.contains('bubble-title')) {
+                        this.closeTitleEditor();
+                    }
+                });
+
+                if (localStorage.getItem('stickyNotes')) {
+                    this.showLoadDialog();
+                }
+            }
+
+            toggleColorDropdown(button) {
+                const dropdown = button.nextElementSibling;
+                dropdown.classList.toggle('show');
+            }
+
+            closeColorDropdown() {
+                document.querySelector('.color-dropdown').classList.remove('show');
+            }
+
+            changeNoteColor(colorClass) {
+                this.selectedNotes.forEach(note => {
+                    // Remove all color classes
+                    note.classList.remove('color-yellow', 'color-blue', 'color-green',
+                        'color-pink', 'color-purple', 'color-orange', 'color-teal',
+                        'color-lime', 'color-coral');
+                    // Add new color class
+                    note.classList.add(colorClass);
+                });
+                this.closeColorDropdown();
+                this.saveToLocalStorage();
+            }
+
+            // Title editor methods
+            openTitleEditor(bubble, title) {
+                this.closeTitleEditor();
+
+                const clusterId = bubble.dataset.clusterId;
+                const currentTitle = this.clusterTitles[clusterId] || 'Group';
+
+                const editor = document.createElement('div');
+                editor.className = 'title-editor';
+                editor.innerHTML = `
+                    <input type="text" value="${currentTitle}" placeholder="Enter group title">
+                    <div class="title-editor-buttons">
+                        <button class="control-button" onclick="stickyNotes.saveBubbleTitle('${clusterId}')">Save</button>
+                        <button class="control-button" onclick="stickyNotes.closeTitleEditor()">Cancel</button>
+                    </div>
+                `;
+
+                // Position the editor near the title
+                const titleRect = title.getBoundingClientRect();
+                editor.style.left = titleRect.left + 'px';
+                editor.style.top = (titleRect.bottom + 10) + 'px';
+
+                document.body.appendChild(editor);
+                editor.querySelector('input').focus();
+                editor.querySelector('input').select();
+            }
+
+            closeTitleEditor() {
+                const editor = document.querySelector('.title-editor');
+                if (editor) {
+                    editor.remove();
+                }
+            }
+
+            saveBubbleTitle(clusterId) {
+                const editor = document.querySelector('.title-editor');
+                if (editor) {
+                    const input = editor.querySelector('input');
+                    const newTitle = input.value.trim() || 'Group';
+                    this.clusterTitles[clusterId] = newTitle;
+
+                    // Update the bubble title display
+                    const bubbleTitle = document.querySelector(`.bubble-title[data-cluster-id="${clusterId}"]`);
+                    if (bubbleTitle) {
+                        bubbleTitle.textContent = newTitle;
+                    }
+
+                    this.saveToLocalStorage();
+                    this.closeTitleEditor();
+                }
+            }
+
+            showLoadDialog() {
+                const dialog = document.createElement('div');
+                dialog.className = 'dialog-overlay';
+                dialog.innerHTML = `
+                <div class="dialog-content">
+                    <h3>Found Saved Notes</h3>
+                    <p>Would you like to load previously saved notes?</p>
+                    <div class="dialog-buttons">
+                        <button class="control-button" onclick="stickyNotes.loadFromLocalStorage()">Load</button>
+                        <button class="control-button delete-button" onclick="stickyNotes.clearLocalStorage()">Delete</button>
+                        <button class="control-button" onclick="this.parentElement.parentElement.parentElement.remove()">Cancel</button>
+                    </div>
+                </div>
+            `;
+                document.body.appendChild(dialog);
+            }
+
+            saveToLocalStorage() {
+                const notesData = this.notes.map(note => {
+                    // Find color class or default to 'color-yellow'
+                    const colorClass = Array.from(note.classList)
+                        .find(cls => cls.startsWith('color-')) || 'color-yellow';
+
+                    return {
+                        left: note.style.left,
+                        top: note.style.top,
+                        text: note.querySelector('textarea').value,
+                        color: colorClass
+                    };
+                });
+
+                const data = {
+                    notes: notesData,
+                    clusterTitles: this.clusterTitles
+                };
+
+                localStorage.setItem('stickyNotes', JSON.stringify(data));
+            }
+
+            loadFromLocalStorage() {
+                try {
+                    const data = JSON.parse(localStorage.getItem('stickyNotes'));
+                    this.clearNotes();
+
+                    // Load notes
+                    if (data.notes) {
+                        data.notes.forEach(noteData => {
+                            const note = this.createStickyNote(0, 0);
+                            note.style.left = noteData.left;
+                            note.style.top = noteData.top;
+                            note.querySelector('textarea').value = noteData.text;
+
+                            // Ensure clean color application
+                            note.classList.remove('color-yellow', 'color-blue', 'color-green',
+                                'color-pink', 'color-purple', 'color-orange', 'color-teal',
+                                'color-lime', 'color-coral');
+
+                            // Add saved color or default to yellow
+                            note.classList.add(noteData.color || 'color-yellow');
+                        });
+                    }
+
+                    // Load cluster titles
+                    if (data.clusterTitles) {
+                        this.clusterTitles = data.clusterTitles;
+                    }
+
+                    document.querySelector('.dialog-overlay')?.remove();
+                    this.updateClusters();
+                } catch (error) {
+                    console.error('Failed to load notes:', error);
+                }
+            }
+
+            clearLocalStorage() {
+                localStorage.removeItem('stickyNotes');
+                document.querySelector('.dialog-overlay')?.remove();
+                this.clearNotes();
+            }
+
+            clearNotes() {
+                this.notes.forEach(note => note.remove());
+                this.notes = [];
+                this.selectedNotes.clear();
+                this.clusterTitles = {};
+                this.updateClusters();
+            }
+
+            setupEventListeners() {
+                this.container.addEventListener('dblclick', (e) => {
+                    if (e.target === this.container) {
+                        this.createStickyNote(e.clientX, e.clientY);
+                    }
+                });
+
+                this.container.addEventListener('mousedown', (e) => {
+                    if (e.target === this.container) {
+                        this.startSelection(e);
+                    }
+                });
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Delete') {
+                        this.deleteSelectedNotes();
+                    }
+                });
+            }
+
+            createStickyNote(x, y) {
+                const note = document.createElement('div');
+                note.className = 'sticky-note color-yellow';  // Default color
+
+                const header = document.createElement('div');
+                header.className = 'sticky-header';
+
+                const content = document.createElement('div');
+                content.className = 'sticky-content';
+
+                const textarea = document.createElement('textarea');
+                textarea.placeholder = ''; // Type your note here...
+
+                textarea.addEventListener('input', () => {
+                    this.saveToLocalStorage();
+                });
+
+                content.appendChild(textarea);
+                note.appendChild(header);
+                note.appendChild(content);
+
+                // If x and y are near default values (button click), position directly below the New button
+                if (Math.abs(x - 250) < 10 && Math.abs(y - 150) < 10) {
+                    const newButton = document.querySelector('.control-panel button:first-child');
+                    const buttonRect = newButton.getBoundingClientRect();
+
+                    // Align with the New button's left edge
+                    x = buttonRect.left;
+
+                    // Position 20px below the New button
+                    y = buttonRect.bottom + 20;
+                }
+
+                note.style.left = x + 'px';  // No adjustment to x position
+                note.style.top = y + 'px';   // No adjustment to y position
+
+                this.setupNoteEventListeners(note, header);
+
+                this.container.appendChild(note);
+                this.notes.push(note);
+                this.updateClusters();
+
+                return note;
+            }
+
+            setupNoteEventListeners(note, header) {
+                note.style.zIndex = ++window.globalMaxZ;
+
+                note.addEventListener('mousedown', (e) => {
+                    note.style.zIndex = ++window.globalMaxZ;
+                    if (e.target !== header && !e.ctrlKey) {  // Changed from e.shiftKey to e.ctrlKey
+                        this.selectedNotes.clear();
+                        this.selectedNotes.add(note);
+                        this.updateNoteSelections();
+                    }
+                });
+
+                header.addEventListener('mousedown', (e) => {
+                    note.style.zIndex = ++window.globalMaxZ;
+                    if (!e.ctrlKey) {  // Changed from e.shiftKey to e.ctrlKey
+                        this.selectedNotes.clear();
+                    }
+                    this.selectedNotes.add(note);
+                    this.updateNoteSelections();
+                    this.startDrag(e, note);
+                });
+            }
+
+            startDrag(e, element) {
+                this.draggedElement = element;
+                const rect = element.getBoundingClientRect();
+                this.offsetX = e.clientX - rect.left;
+                this.offsetY = e.clientY - rect.top;
+
+                document.addEventListener('mousemove', this.dragMove.bind(this));
+                document.addEventListener('mouseup', this.endDrag.bind(this));
+            }
+
+            dragMove(e) {
+                if (!this.draggedElement) return;
+
+                const deltaX = e.clientX - this.offsetX - this.draggedElement.offsetLeft;
+                const deltaY = e.clientY - this.offsetY - this.draggedElement.offsetTop;
+
+                this.selectedNotes.forEach(note => {
+                    const newX = note.offsetLeft + deltaX;
+                    const newY = note.offsetTop + deltaY;
+                    note.style.left = Math.max(0, Math.min(newX, window.innerWidth - 200)) + 'px';
+                    note.style.top = Math.max(0, Math.min(newY, window.innerHeight - 150)) + 'px';
+                });
+
+                this.updateClusters();
+                this.saveToLocalStorage();
+            }
+
+            startClusterDrag(e, cluster, bubble) {
+                const startPositions = cluster.map(note => ({
+                    note,
+                    offsetX: note.offsetLeft - e.clientX,
+                    offsetY: note.offsetTop - e.clientY
+                }));
+
+                const moveCluster = (moveEvent) => {
+                    startPositions.forEach(({ note, offsetX, offsetY }) => {
+                        const newX = moveEvent.clientX + offsetX;
+                        const newY = moveEvent.clientY + offsetY;
+                        note.style.left = `${Math.max(0, Math.min(newX, window.innerWidth - 200))}px`;
+                        note.style.top = `${Math.max(0, Math.min(newY, window.innerHeight - 150))}px`;
+                    });
+                    this.updateClusters();
+                    this.saveToLocalStorage();
+                };
+
+                const endClusterDrag = () => {
+                    document.removeEventListener('mousemove', moveCluster);
+                    document.removeEventListener('mouseup', endClusterDrag);
+                };
+
+                document.addEventListener('mousemove', moveCluster);
+                document.addEventListener('mouseup', endClusterDrag);
+            }
+
+            endDrag() {
+                this.draggedElement = null;
+                document.removeEventListener('mousemove', this.dragMove.bind(this));
+                document.removeEventListener('mouseup', this.endDrag.bind(this));
+            }
+
+            sstartSelection(e) {
+                if (!e.ctrlKey) {  // Changed from e.shiftKey to e.ctrlKey
+                    this.selectedNotes.clear();
+                    this.updateNoteSelections();
+                }
+
+                this.isSelecting = true;
+                this.selectionStart = {
+                    x: e.clientX,
+                    y: e.clientY
+                };
+
+                this.selectionArea = document.createElement('div');
+                this.selectionArea.className = 'selection-area';
+                this.container.appendChild(this.selectionArea);
+
+                document.addEventListener('mousemove', this.updateSelection.bind(this));
+                document.addEventListener('mouseup', this.endSelection.bind(this));
+            }
+
+            updateSelection(e) {
+                if (!this.isSelecting) return;
+
+                const x = Math.min(e.clientX, this.selectionStart.x);
+                const y = Math.min(e.clientY, this.selectionStart.y);
+                const width = Math.abs(e.clientX - this.selectionStart.x);
+                const height = Math.abs(e.clientY - this.selectionStart.y);
+
+                this.selectionArea.style.left = x + 'px';
+                this.selectionArea.style.top = y + 'px';
+                this.selectionArea.style.width = width + 'px';
+                this.selectionArea.style.height = height + 'px';
+
+                this.checkNotesInSelection(x, y, width, height);
+            }
+
+            checkNotesInSelection(x, y, width, height) {
+                this.notes.forEach(note => {
+                    const rect = note.getBoundingClientRect();
+                    if (rect.left < x + width &&
+                        rect.right > x &&
+                        rect.top < y + height &&
+                        rect.bottom > y) {
+                        this.selectedNotes.add(note);
+                    }
+                });
+                this.updateNoteSelections();
+            }
+
+            endSelection() {
+                this.isSelecting = false;
+                if (this.selectionArea) {
+                    this.selectionArea.remove();
+                    this.selectionArea = null;
+                }
+                document.removeEventListener('mousemove', this.updateSelection.bind(this));
+                document.removeEventListener('mouseup', this.endSelection.bind(this));
+            }
+
+            updateNoteSelections() {
+                this.notes.forEach(note => {
+                    if (this.selectedNotes.has(note)) {
+                        note.classList.add('selected');
+                    } else {
+                        note.classList.remove('selected');
+                    }
+                });
+            }
+
+            deleteSelectedNotes() {
+                if (this.selectedNotes.size === 0) return;
+
+                // Create confirmation dialog
+                const dialog = document.createElement('div');
+                dialog.className = 'dialog-overlay';
+                dialog.innerHTML = `
+        <div class="dialog-content">
+            <h3>Delete Notes</h3>
+            <p>Are you sure you want to delete the selected ${this.selectedNotes.size} note${this.selectedNotes.size > 1 ? 's' : ''}?</p>
+            <div class="dialog-buttons">
+                <button class="control-button delete-button" onclick="stickyNotes.confirmDelete()">Delete</button>
+                <button class="control-button" onclick="this.parentElement.parentElement.parentElement.remove()">Cancel</button>
+            </div>
+        </div>
+    `;
+                document.body.appendChild(dialog);
+            }
+
+            confirmDelete() {
+                // Remove the confirmation dialog
+                document.querySelector('.dialog-overlay').remove();
+
+                // Delete the selected notes
+                this.selectedNotes.forEach(note => {
+                    const index = this.notes.indexOf(note);
+                    if (index > -1) {
+                        this.notes.splice(index, 1);
+                        note.remove();
+                    }
+                });
+                this.selectedNotes.clear();
+                this.updateClusters();
+                this.saveToLocalStorage();
+            }
+
+            updateClusters() {
+                this.bubbles.forEach(bubble => bubble.remove());
+                this.bubbles = [];
+
+                const clusters = this.findClusters();
+                clusters.forEach((cluster, index) => {
+                    if (cluster.length < 2) return;
+
+                    // Generate a stable ID based on the notes in the cluster
+                    const notesIds = cluster.map(note => this.notes.indexOf(note)).sort().join('-');
+                    const clusterId = `cluster-${notesIds}`;
+
+                    const bounds = this.getClusterBounds(cluster);
+                    const bubble = document.createElement('div');
+                    bubble.className = 'bubble';
+                    bubble.dataset.clusterId = clusterId;
+
+                    const padding = 30;
+                    const diameter = Math.max(bounds.width, bounds.height) + padding * 2;
+
+                    bubble.style.left = (bounds.centerX - diameter / 2) + 'px';
+                    bubble.style.top = (bounds.centerY - diameter / 2) + 'px';
+                    bubble.style.width = diameter + 'px';
+                    bubble.style.height = diameter + 'px';
+
+                    // Create bubble title
+                    const bubbleTitle = document.createElement('div');
+                    bubbleTitle.className = 'bubble-title';
+                    bubbleTitle.dataset.clusterId = clusterId;
+                    bubbleTitle.textContent = this.clusterTitles[clusterId] || 'Group';
+
+                    // Add event listeners for title
+                    bubbleTitle.addEventListener('dblclick', (e) => {
+                        this.openTitleEditor(bubble, bubbleTitle);
+                        e.stopPropagation();
+                    });
+
+                    bubbleTitle.addEventListener('mousedown', (e) => {
+                        // Only handle left mouse button
+                        if (e.button === 0) {
+                            this.startClusterDrag(e, cluster, bubble);
+                            e.stopPropagation();
+                        }
+                    });
+
+                    bubble.addEventListener('dblclick', (e) => {
+                        this.openTitleEditor(bubble, bubbleTitle);
+                        e.stopPropagation();
+                    });
+
+                    bubble.addEventListener('mousedown', (e) => {
+                        if (e.target === bubble) {
+                            this.startClusterDrag(e, cluster, bubble);
+                        }
+                    });
+
+                    this.container.appendChild(bubble);
+                    bubble.appendChild(bubbleTitle);
+                    this.bubbles.push(bubble);
+                });
+            }
+
+            findClusters() {
+                const clusters = [];
+                const visited = new Set();
+
+                this.notes.forEach(note => {
+                    if (visited.has(note)) return;
+
+                    const cluster = [note];
+                    visited.add(note);
+
+                    this.notes.forEach(other => {
+                        if (note === other || visited.has(other)) return;
+
+                        if (this.getDistance(note, other) < this.clusterThreshold) {
+                            cluster.push(other);
+                            visited.add(other);
+                        }
+                    });
+
+                    clusters.push(cluster);
+                });
+
+                return clusters;
+            }
+
+            getDistance(note1, note2) {
+                const rect1 = note1.getBoundingClientRect();
+                const rect2 = note2.getBoundingClientRect();
+
+                // Calculate shortest distance between two rectangles
+                let dx = 0;
+                let dy = 0;
+
+                // Calculate horizontal distance
+                if (rect1.right < rect2.left) {
+                    // note1 is to the left of note2
+                    dx = rect2.left - rect1.right;
+                } else if (rect2.right < rect1.left) {
+                    // note1 is to the right of note2
+                    dx = rect1.left - rect2.right;
+                }
+
+                // Calculate vertical distance
+                if (rect1.bottom < rect2.top) {
+                    // note1 is above note2
+                    dy = rect2.top - rect1.bottom;
+                } else if (rect2.bottom < rect1.top) {
+                    // note1 is below note2
+                    dy = rect1.top - rect2.bottom;
+                }
+
+                // If rectangles overlap, distance is 0, otherwise calculate Euclidean distance
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            getClusterBounds(cluster) {
+                let minX = Infinity, minY = Infinity;
+                let maxX = -Infinity, maxY = -Infinity;
+
+                cluster.forEach(note => {
+                    const rect = note.getBoundingClientRect();
+                    minX = Math.min(minX, rect.left);
+                    minY = Math.min(minY, rect.top);
+                    maxX = Math.max(maxX, rect.left + rect.width);
+                    maxY = Math.max(maxY, rect.top + rect.height);
+                });
+
+                return {
+                    width: maxX - minX,
+                    height: maxY - minY,
+                    centerX: (minX + maxX) / 2,
+                    centerY: (minY + maxY) / 2
+                };
+            }
+        }
+
+        const container = document.getElementById('container');
+        const stickyNotes = new StickyNotesCluster(container);
+    </script>
+</body>
+
+</html>
