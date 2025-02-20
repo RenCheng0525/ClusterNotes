@@ -312,11 +312,15 @@
                 this.isSelecting = false;
                 this.selectionStart = { x: 0, y: 0 };
                 this.clusterTitles = {}; // Store cluster titles
+                this.touchIdentifier = null; // For tracking touch events
+                this.isTouching = false; // Flag to identify touch vs mouse events
+                this.lastTapTime = 0; // For detecting double-tap
+                this.doubleTapDelay = 300; // Milliseconds to detect double tap
 
                 this.setupEventListeners();
                 window.addEventListener('resize', () => this.updateClusters());
 
-                // Close color dropdown when clicking outside
+                // Close color dropdown when clicking/tapping outside
                 document.addEventListener('click', (e) => {
                     if (!e.target.closest('.color-button-container')) {
                         this.closeColorDropdown();
@@ -326,6 +330,7 @@
                     }
                 });
 
+                // Check for stored notes
                 if (localStorage.getItem('stickyNotes')) {
                     this.showLoadDialog();
                 }
@@ -337,7 +342,7 @@
             }
 
             closeColorDropdown() {
-                document.querySelector('.color-dropdown').classList.remove('show');
+                document.querySelector('.color-dropdown')?.classList.remove('show');
             }
 
             changeNoteColor(colorClass) {
@@ -363,12 +368,12 @@
                 const editor = document.createElement('div');
                 editor.className = 'title-editor';
                 editor.innerHTML = `
-                    <input type="text" value="${currentTitle}" placeholder="Enter group title">
-                    <div class="title-editor-buttons">
-                        <button class="control-button" onclick="stickyNotes.saveBubbleTitle('${clusterId}')">Save</button>
-                        <button class="control-button" onclick="stickyNotes.closeTitleEditor()">Cancel</button>
-                    </div>
-                `;
+                <input type="text" value="${currentTitle}" placeholder="Enter group title">
+                <div class="title-editor-buttons">
+                    <button class="control-button" onclick="stickyNotes.saveBubbleTitle('${clusterId}')">Save</button>
+                    <button class="control-button" onclick="stickyNotes.closeTitleEditor()">Cancel</button>
+                </div>
+            `;
 
                 // Position the editor near the title
                 const titleRect = title.getBoundingClientRect();
@@ -494,6 +499,7 @@
             }
 
             setupEventListeners() {
+                // Mouse events for container
                 this.container.addEventListener('dblclick', (e) => {
                     if (e.target === this.container) {
                         this.createStickyNote(e.clientX, e.clientY);
@@ -506,6 +512,25 @@
                     }
                 });
 
+                // Touch events for container
+                this.container.addEventListener('touchstart', (e) => {
+                    // Skip if already tracking a touch
+                    if (this.touchIdentifier !== null) return;
+
+                    const touch = e.changedTouches[0];
+                    if (e.target === this.container) {
+                        // Check for double-tap
+                        const now = Date.now();
+                        if (now - this.lastTapTime < this.doubleTapDelay) {
+                            // Double-tap detected - create a note
+                            this.createStickyNote(touch.clientX, touch.clientY);
+                            e.preventDefault();
+                        }
+                        this.lastTapTime = now;
+                    }
+                }, { passive: false });
+
+                // Keyboard events
                 document.addEventListener('keydown', (e) => {
                     if (e.key === 'Delete') {
                         this.deleteSelectedNotes();
@@ -524,7 +549,7 @@
                 content.className = 'sticky-content';
 
                 const textarea = document.createElement('textarea');
-                textarea.placeholder = ''; // Type your note here...
+                textarea.placeholder = ''; // Empty placeholder
 
                 textarea.addEventListener('input', () => {
                     this.saveToLocalStorage();
@@ -546,8 +571,8 @@
                     y = buttonRect.bottom + 20;
                 }
 
-                note.style.left = x + 'px';  // No adjustment to x position
-                note.style.top = y + 'px';   // No adjustment to y position
+                note.style.left = x + 'px';
+                note.style.top = y + 'px';
 
                 this.setupNoteEventListeners(note, header);
 
@@ -561,9 +586,11 @@
             setupNoteEventListeners(note, header) {
                 note.style.zIndex = ++window.globalMaxZ;
 
+                // Mouse events
                 note.addEventListener('mousedown', (e) => {
+                    if (this.isTouching) return; // Skip if touch in progress
                     note.style.zIndex = ++window.globalMaxZ;
-                    if (e.target !== header && !e.ctrlKey) {  // Changed from e.shiftKey to e.ctrlKey
+                    if (e.target !== header && !e.ctrlKey) {
                         this.selectedNotes.clear();
                         this.selectedNotes.add(note);
                         this.updateNoteSelections();
@@ -571,13 +598,42 @@
                 });
 
                 header.addEventListener('mousedown', (e) => {
+                    if (this.isTouching) return; // Skip if touch in progress
                     note.style.zIndex = ++window.globalMaxZ;
-                    if (!e.ctrlKey) {  // Changed from e.shiftKey to e.ctrlKey
+                    if (!e.ctrlKey) {
                         this.selectedNotes.clear();
                     }
                     this.selectedNotes.add(note);
                     this.updateNoteSelections();
                     this.startDrag(e, note);
+                });
+
+                // Touch events
+                header.addEventListener('touchstart', (e) => {
+                    // Skip if already tracking a touch
+                    if (this.touchIdentifier !== null) return;
+
+                    this.isTouching = true;
+                    note.style.zIndex = ++window.globalMaxZ;
+
+                    this.selectedNotes.clear();
+                    this.selectedNotes.add(note);
+                    this.updateNoteSelections();
+
+                    const touch = e.changedTouches[0];
+                    this.touchIdentifier = touch.identifier;
+                    this.startTouchDrag(touch, note);
+                    e.preventDefault();
+                }, { passive: false });
+
+                note.addEventListener('touchend', () => {
+                    this.isTouching = false;
+                    this.touchIdentifier = null;
+                });
+
+                note.addEventListener('touchcancel', () => {
+                    this.isTouching = false;
+                    this.touchIdentifier = null;
                 });
             }
 
@@ -589,6 +645,17 @@
 
                 document.addEventListener('mousemove', this.dragMove.bind(this));
                 document.addEventListener('mouseup', this.endDrag.bind(this));
+            }
+
+            startTouchDrag(touch, element) {
+                this.draggedElement = element;
+                const rect = element.getBoundingClientRect();
+                this.offsetX = touch.clientX - rect.left;
+                this.offsetY = touch.clientY - rect.top;
+
+                document.addEventListener('touchmove', this.touchDragMove.bind(this), { passive: false });
+                document.addEventListener('touchend', this.endTouchDrag.bind(this));
+                document.addEventListener('touchcancel', this.endTouchDrag.bind(this));
             }
 
             dragMove(e) {
@@ -606,6 +673,50 @@
 
                 this.updateClusters();
                 this.saveToLocalStorage();
+            }
+
+            touchDragMove(e) {
+                if (!this.draggedElement) return;
+
+                // Find the touch with matching identifier
+                let touch = null;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === this.touchIdentifier) {
+                        touch = e.changedTouches[i];
+                        break;
+                    }
+                }
+                if (!touch) return;
+
+                e.preventDefault(); // Prevent scrolling while dragging
+
+                const deltaX = touch.clientX - this.offsetX - this.draggedElement.offsetLeft;
+                const deltaY = touch.clientY - this.offsetY - this.draggedElement.offsetTop;
+
+                this.selectedNotes.forEach(note => {
+                    const newX = note.offsetLeft + deltaX;
+                    const newY = note.offsetTop + deltaY;
+                    note.style.left = Math.max(0, Math.min(newX, window.innerWidth - 200)) + 'px';
+                    note.style.top = Math.max(0, Math.min(newY, window.innerHeight - 150)) + 'px';
+                });
+
+                this.updateClusters();
+                this.saveToLocalStorage();
+            }
+
+            endDrag() {
+                this.draggedElement = null;
+                document.removeEventListener('mousemove', this.dragMove.bind(this));
+                document.removeEventListener('mouseup', this.endDrag.bind(this));
+            }
+
+            endTouchDrag() {
+                this.draggedElement = null;
+                this.touchIdentifier = null;
+                this.isTouching = false;
+                document.removeEventListener('touchmove', this.touchDragMove.bind(this));
+                document.removeEventListener('touchend', this.endTouchDrag.bind(this));
+                document.removeEventListener('touchcancel', this.endTouchDrag.bind(this));
             }
 
             startClusterDrag(e, cluster, bubble) {
@@ -635,14 +746,54 @@
                 document.addEventListener('mouseup', endClusterDrag);
             }
 
-            endDrag() {
-                this.draggedElement = null;
-                document.removeEventListener('mousemove', this.dragMove.bind(this));
-                document.removeEventListener('mouseup', this.endDrag.bind(this));
+            startTouchClusterDrag(touch, cluster, bubble) {
+                this.touchIdentifier = touch.identifier;
+                this.isTouching = true;
+
+                const startPositions = cluster.map(note => ({
+                    note,
+                    offsetX: note.offsetLeft - touch.clientX,
+                    offsetY: note.offsetTop - touch.clientY
+                }));
+
+                const moveTouchCluster = (moveEvent) => {
+                    // Find the touch with matching identifier
+                    let moveTouch = null;
+                    for (let i = 0; i < moveEvent.changedTouches.length; i++) {
+                        if (moveEvent.changedTouches[i].identifier === this.touchIdentifier) {
+                            moveTouch = moveEvent.changedTouches[i];
+                            break;
+                        }
+                    }
+                    if (!moveTouch) return;
+
+                    moveEvent.preventDefault(); // Prevent scrolling
+
+                    startPositions.forEach(({ note, offsetX, offsetY }) => {
+                        const newX = moveTouch.clientX + offsetX;
+                        const newY = moveTouch.clientY + offsetY;
+                        note.style.left = `${Math.max(0, Math.min(newX, window.innerWidth - 200))}px`;
+                        note.style.top = `${Math.max(0, Math.min(newY, window.innerHeight - 150))}px`;
+                    });
+                    this.updateClusters();
+                    this.saveToLocalStorage();
+                };
+
+                const endTouchClusterDrag = () => {
+                    this.touchIdentifier = null;
+                    this.isTouching = false;
+                    document.removeEventListener('touchmove', moveTouchCluster);
+                    document.removeEventListener('touchend', endTouchClusterDrag);
+                    document.removeEventListener('touchcancel', endTouchClusterDrag);
+                };
+
+                document.addEventListener('touchmove', moveTouchCluster, { passive: false });
+                document.addEventListener('touchend', endTouchClusterDrag);
+                document.addEventListener('touchcancel', endTouchClusterDrag);
             }
 
-            sstartSelection(e) {
-                if (!e.ctrlKey) {  // Changed from e.shiftKey to e.ctrlKey
+            startSelection(e) {
+                if (!e.ctrlKey) {
                     this.selectedNotes.clear();
                     this.updateNoteSelections();
                 }
@@ -717,15 +868,15 @@
                 const dialog = document.createElement('div');
                 dialog.className = 'dialog-overlay';
                 dialog.innerHTML = `
-        <div class="dialog-content">
-            <h3>Delete Notes</h3>
-            <p>Are you sure you want to delete the selected ${this.selectedNotes.size} note${this.selectedNotes.size > 1 ? 's' : ''}?</p>
-            <div class="dialog-buttons">
-                <button class="control-button delete-button" onclick="stickyNotes.confirmDelete()">Delete</button>
-                <button class="control-button" onclick="this.parentElement.parentElement.parentElement.remove()">Cancel</button>
-            </div>
-        </div>
-    `;
+                <div class="dialog-content">
+                    <h3>Delete Notes</h3>
+                    <p>Are you sure you want to delete the selected ${this.selectedNotes.size} note${this.selectedNotes.size > 1 ? 's' : ''}?</p>
+                    <div class="dialog-buttons">
+                        <button class="control-button delete-button" onclick="stickyNotes.confirmDelete()">Delete</button>
+                        <button class="control-button" onclick="this.parentElement.parentElement.parentElement.remove()">Cancel</button>
+                    </div>
+                </div>
+            `;
                 document.body.appendChild(dialog);
             }
 
@@ -777,13 +928,16 @@
                     bubbleTitle.dataset.clusterId = clusterId;
                     bubbleTitle.textContent = this.clusterTitles[clusterId] || 'Group';
 
-                    // Add event listeners for title
+                    // Add event listeners for title - mouse
                     bubbleTitle.addEventListener('dblclick', (e) => {
+                        if (this.isTouching) return;
                         this.openTitleEditor(bubble, bubbleTitle);
                         e.stopPropagation();
                     });
 
+                    // Add event listener for dragging by title - mouse
                     bubbleTitle.addEventListener('mousedown', (e) => {
+                        if (this.isTouching) return;
                         // Only handle left mouse button
                         if (e.button === 0) {
                             this.startClusterDrag(e, cluster, bubble);
@@ -791,16 +945,52 @@
                         }
                     });
 
+                    // Add touch events for title
+                    bubbleTitle.addEventListener('touchstart', (e) => {
+                        if (this.touchIdentifier !== null) return;
+
+                        const touch = e.changedTouches[0];
+                        this.lastTapTime = Date.now();
+                        this.startTouchClusterDrag(touch, cluster, bubble);
+                        e.stopPropagation();
+                        e.preventDefault();
+                    }, { passive: false });
+
+                    // Mouse events for bubble
                     bubble.addEventListener('dblclick', (e) => {
+                        if (this.isTouching) return;
                         this.openTitleEditor(bubble, bubbleTitle);
                         e.stopPropagation();
                     });
 
                     bubble.addEventListener('mousedown', (e) => {
+                        if (this.isTouching) return;
                         if (e.target === bubble) {
                             this.startClusterDrag(e, cluster, bubble);
                         }
                     });
+
+                    // Touch events for bubble
+                    bubble.addEventListener('touchstart', (e) => {
+                        if (this.touchIdentifier !== null) return;
+
+                        const touch = e.changedTouches[0];
+                        const now = Date.now();
+
+                        if (now - this.lastTapTime < this.doubleTapDelay) {
+                            // Double-tap detected
+                            this.openTitleEditor(bubble, bubbleTitle);
+                            e.preventDefault();
+                            e.stopPropagation();
+                        } else {
+                            // Single tap - start drag
+                            this.startTouchClusterDrag(touch, cluster, bubble);
+                            e.stopPropagation();
+                            e.preventDefault();
+                        }
+
+                        this.lastTapTime = now;
+                    }, { passive: false });
 
                     this.container.appendChild(bubble);
                     bubble.appendChild(bubbleTitle);
